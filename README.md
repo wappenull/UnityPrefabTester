@@ -1,6 +1,6 @@
 # UnityPrefabTester
 
-![Alt text](https://raw.github.com/wappenull/UnityPrefabTester/master/demoImage.png?sanitize=true)
+![Alt text](./demoImage.png)
 
 Ultimate prefab property tester for nested prefab era.
 This is editor script to demonstrate ALL* prefab related API in Unity Editor.
