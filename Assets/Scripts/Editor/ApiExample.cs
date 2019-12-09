@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEditor;
 using Wappen.Editor;
+using System;
 
 public class PrefabApiTest : EditorWindow
 {
@@ -13,6 +14,22 @@ public class PrefabApiTest : EditorWindow
     private void OnGUI( )
     {
         _DisplayApiExample( );
+        _DisplayExtraSelect( );
+    }
+
+    private void _DisplayExtraSelect( )
+    {
+        GUILayout.Space( 40 );
+        EditorGUILayout.HelpBox( 
+            "Extra sample\n"+
+            "This will select gameobject node under CubePlayer/LeftHand/Gun in PrefabAsset: Assets/Prefabs/CubePlayer.prefab\n"+
+            "Which is not possible to select by hand in newer version of unity.\n"+
+            "This will demonstrate prefab instance nested under prefab asset.", MessageType.Info );
+        if( GUILayout.Button( "Example: Set to CubePlayer/LeftHand/Gun in PrefabAsset" ) )
+        {
+            GameObject g = AssetDatabase.LoadAssetAtPath<GameObject>( "Assets/Prefabs/CubePlayer.prefab" );
+            m_TestingPrefab = g.transform.Find( "LeftHand/Gun" ).gameObject;
+        }
     }
 
     private UnityEngine.Object m_TestingPrefab;
@@ -27,10 +44,16 @@ public class PrefabApiTest : EditorWindow
             "- From asset folder\n" +
             "- From prefab editing stage\n" +
             "- Nested prefab, child of nested prefab, non-prefab\n" +
-            "Output will be in console log.";
+            "Output below.";
             
         EditorGUILayout.HelpBox( helpText, MessageType.Info );
-        m_TestingPrefab = EditorGUILayout.ObjectField( "Source prefab", m_TestingPrefab, typeof( GameObject ), true );
+        m_TestingPrefab = EditorGUILayout.ObjectField( "Testing GameObject", m_TestingPrefab, typeof( GameObject ), true );
+
+        
+        if( m_TestingPrefab == null )
+        {
+            m_CurrentDisplayingPrefab = null;
+        }
 
         if( m_TestingPrefab != m_CurrentDisplayingPrefab )
         {
@@ -81,9 +104,36 @@ public class PrefabApiTest : EditorWindow
         }
 
         report += "nearest AssetPath: " + prop.prefabAssetPath;
+        report += "\n";
+
+        if( prop.prefabAssetRoot != null )
+        {
+            report += "Prefab asset root is: " + prop.prefabAssetRoot.name;
+            report += "\n";
+        }
 
         EditorGUILayout.HelpBox( report, MessageType.None );
 
+        if( prop.nearestInstanceRoot != null )
+        {
+            GUI.enabled = false;
+            EditorGUILayout.LabelField( "Resolved nearest instance root" );
+            EditorGUI.indentLevel += 1;
+            EditorGUILayout.ObjectField( prop.nearestInstanceRoot, typeof(GameObject), true );
+            EditorGUI.indentLevel -= 1;
+            GUI.enabled = true;
+        }
+        
+
+        if( prop.prefabAssetRoot != null )
+        {
+            GUI.enabled = false;
+            EditorGUILayout.LabelField( "Resolved prefab asset root" );
+            EditorGUI.indentLevel += 1;
+            EditorGUILayout.ObjectField( prop.prefabAssetRoot, typeof(GameObject), false );
+            EditorGUI.indentLevel -= 1;
+            GUI.enabled = true;
+        }
     }
 
 

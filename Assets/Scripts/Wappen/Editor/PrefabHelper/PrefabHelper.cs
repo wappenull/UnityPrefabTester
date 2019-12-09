@@ -60,13 +60,15 @@ namespace Wappen.Editor
 #endif
 
             /// <summary>
-            /// Nearest Asset path of selected gameObject.
+            /// Nearest Asset path of prefab around selected gameObject.
             /// null if selected object is not part of any prefab.
             /// </summary>
             public string prefabAssetPath;
 
             /// <summary>
             /// Valid only when isPrefabAssetRoot = true.
+            /// Top most prefab asset root.
+            /// Is this object itself when isPrefabAssetRoot = true, could be otherwise when false.
             /// </summary>
             public GameObject prefabAssetRoot;
 
@@ -100,23 +102,27 @@ namespace Wappen.Editor
             //bool isPartOfPrefabInstance = PrefabUtility.IsPartOfPrefabInstance(gameObject); // Does not required, also generate warning in Editor
             p.isPartOfPrefabAsset = PrefabUtility.IsPartOfPrefabAsset( gameObject );
 
+            // Second test, using direct AssetDatabase
+            if( !p.isPartOfPrefabAsset )
+                p.isPartOfPrefabAsset = !string.IsNullOrEmpty( AssetDatabase.GetAssetPath( gameObject ) );
+
             // Prefab Asset Root method (See obsolete warning in FindPrefabRoot)
             // Use gameObject.transform.root.gameObject to test for prefab asset root.
             // Use PrefabUtility.GetNearestPrefabInstanceRoot to test for prefab instance root.
+            
+            // It could be prefab instance nested inside asset prefab
+            // Test its own root-ness first with nearest instance root method regardless of isPartOfPrefabAsset status
+            GameObject nerestInstanceRoot = p.nearestInstanceRoot = PrefabUtility.GetNearestPrefabInstanceRoot( gameObject );
+            p.isPartOfPrefabInstance = (nerestInstanceRoot != null);
+            p.isPrefabInstanceRoot = (gameObject == nerestInstanceRoot); // Equivalent to PrefabUtility.IsAnyPrefabInstanceRoot
+
             if( p.isPartOfPrefabAsset )
             {
                 p.prefabAssetRoot = gameObject.transform.root.gameObject;
                 p.isPrefabAssetRoot = (gameObject == p.prefabAssetRoot);
             }
-            else // Allow output to be only prefab asset, or prefab instance
-            {
-                // Check for nearest instance root method
-                GameObject nerestInstanceRoot = p.nearestInstanceRoot = PrefabUtility.GetNearestPrefabInstanceRoot( gameObject );
-                p.isPartOfPrefabInstance = (nerestInstanceRoot != null);
-                p.isPrefabInstanceRoot = (gameObject == nerestInstanceRoot); // Equivalent to PrefabUtility.IsAnyPrefabInstanceRoot
-            }
 
-            // Prefab stage needed to be checked first as it is very special rule
+            // Prefab stage needed to be checked separately as it is very special rule
             var editorPrefabStage = PrefabStageUtility.GetCurrentPrefabStage( );
             if( editorPrefabStage != null ) // We are in prefab stage, but is selected gameobject really an object from prefab stage?
             {
@@ -124,7 +130,7 @@ namespace Wappen.Editor
                 // - root object editing in prefab stage wont have connection to its original prefab (gray gameobject icon) 
                 // - editorPrefabStage.prefabContentsRoot cannot be use to == test with gameObject.transform.root.gameObject (which is gameobject instance)
                 //   So with best effort we can test only name there. (The best approach is to test asset path, but API is yet to be found)
-                if( p.isPartOfPrefabAsset == false && editorPrefabStage.prefabContentsRoot.name == gameObject.transform.root.gameObject.name )
+                if( p.isPartOfPrefabAsset == false )
                     p.isPartOfPrefabStage = true;
 
                 // Root object has no more parent
