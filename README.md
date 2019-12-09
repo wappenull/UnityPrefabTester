@@ -1,5 +1,7 @@
 # UnityPrefabTester
 
+![Alt text](https://raw.github.com/wappenull/UnityPrefabTester/master/demoImage.png?sanitize=true)
+
 Ultimate prefab property tester for nested prefab era.
 This is editor script to demonstrate ALL* prefab related API in Unity Editor.
 *(Except prefab variant related)
@@ -15,13 +17,13 @@ Including resolve nearest asset path, root of prefab if available.
 To try the example API, import package or open demo project.
 Select menu Tool->Prefab tester API example
 
-Related API used:
+## Related API used:
 - PrefabUtility.IsPartOfPrefabAsset
 - PrefabUtility.GetNearestPrefabInstanceRoot
 - PrefabStageUtility.GetCurrentPrefabStage
 - PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot
 - AssetDatabase.GetAssetPath
 
-Possible useful scenario:
+## Possible useful scenario:
 - Useful for some editor script automation based on prefabs.
-- Originally, I write this code to fix Mirror network plugin issue on determining assetPath on NetworkIdentity in complex cases which my game is using.
+- Originally, I write this code to fix [Mirror network plugin](https://github.com/vis2k/Mirror) issue on determining assetPath on NetworkIdentity in complex cases which my game is using.
