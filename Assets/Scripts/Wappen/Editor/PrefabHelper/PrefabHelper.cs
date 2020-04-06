@@ -110,17 +110,24 @@ namespace Wappen.Editor
             // Use gameObject.transform.root.gameObject to test for prefab asset root.
             // Use PrefabUtility.GetNearestPrefabInstanceRoot to test for prefab instance root.
             
-            // It could be prefab instance nested inside asset prefab
-            // Test its own root-ness first with nearest instance root method regardless of isPartOfPrefabAsset status
-            GameObject nerestInstanceRoot = p.nearestInstanceRoot = PrefabUtility.GetNearestPrefabInstanceRoot( gameObject );
-            p.isPartOfPrefabInstance = (nerestInstanceRoot != null);
-            p.isPrefabInstanceRoot = (gameObject == nerestInstanceRoot); // Equivalent to PrefabUtility.IsAnyPrefabInstanceRoot
-
             if( p.isPartOfPrefabAsset )
             {
                 p.prefabAssetRoot = gameObject.transform.root.gameObject;
                 p.isPrefabAssetRoot = (gameObject == p.prefabAssetRoot);
             }
+
+            // It could be prefab instance nested inside asset prefab
+            // Test its own root-ness first with nearest instance root method regardless of isPartOfPrefabAsset status
+            
+            if( !p.isPrefabAssetRoot ) // If it is not prefab asset root, check if it is prefab instance root
+            {
+                // Note: Cause warning message on editor:
+                // SendMessage cannot be called during Awake, CheckConsistency, or OnValidate
+                p.nearestInstanceRoot = PrefabUtility.GetNearestPrefabInstanceRoot( gameObject );
+                p.isPartOfPrefabInstance = (p.nearestInstanceRoot != null);
+                p.isPrefabInstanceRoot = (gameObject == p.nearestInstanceRoot); // Equivalent to PrefabUtility.IsAnyPrefabInstanceRoot
+            }
+
 
             // Prefab stage needed to be checked separately as it is very special rule
             var editorPrefabStage = PrefabStageUtility.GetCurrentPrefabStage( );
@@ -146,12 +153,12 @@ namespace Wappen.Editor
                 {
                     p.prefabAssetPath = editorPrefabStage.prefabAssetPath;
                 }
-                else if( p.isPrefabInstanceRoot )
+                else if( p.isPrefabInstanceRoot ) // Prioritize displaying prefab instance before root asset
                 {
                     // Trace back from prefab instance to original prefab asset
                     // Note: GetPrefabAssetPathOfNearestInstanceRoot is the only way to obtain real asset path of this (sub/nested)prefab
                     // internally it uses PrefabUtility.GetOriginalSourceOrVariantRoot which is internal to Unity
-                    p.prefabAssetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot( gameObject );
+                    p.prefabAssetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot( p.nearestInstanceRoot );
                 }
                 else if( p.isPrefabAssetRoot )
                 {
@@ -166,7 +173,7 @@ namespace Wappen.Editor
                 {
                     p.prefabAssetPath = editorPrefabStage.prefabAssetPath;
                 }
-                else if( p.isPartOfPrefabInstance )
+                else if( p.isPartOfPrefabInstance ) // Prioritize displaying prefab instance before root asset
                 {
                     p.prefabAssetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot( p.nearestInstanceRoot );
                 }
