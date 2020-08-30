@@ -4,6 +4,9 @@ using UnityEditor.Experimental.SceneManagement;
 
 namespace Wappen.Editor
 {
+    /// <summary>
+    /// Helps determine every aspect of GameObject prefab state.
+    /// </summary>
     public static class PrefabHelper
     {
         public struct Properties
@@ -96,84 +99,112 @@ namespace Wappen.Editor
         public static Properties GetPrefabProperties( GameObject gameObject )
         {
             Properties p = new Properties( );
-            
+
+#if false // Does not required anymore, also generate warning in Editor
             // Wappen hack: From https://forum.unity.com/threads/problem-with-prefab-api-upgrade.537074/
             // Check if it is nesting prefab
-            //bool isPartOfPrefabInstance = PrefabUtility.IsPartOfPrefabInstance(gameObject); // Does not required, also generate warning in Editor
-            p.isPartOfPrefabAsset = PrefabUtility.IsPartOfPrefabAsset( gameObject );
+            //bool isPartOfPrefabInstance = PrefabUtility.IsPartOfPrefabInstance(gameObject); 
+#endif
 
-            // Second test, using direct AssetDatabase
-            if( !p.isPartOfPrefabAsset )
-                p.isPartOfPrefabAsset = !string.IsNullOrEmpty( AssetDatabase.GetAssetPath( gameObject ) );
-
-            // Prefab Asset Root method (See obsolete warning in FindPrefabRoot)
-            // Use gameObject.transform.root.gameObject to test for prefab asset root.
-            // Use PrefabUtility.GetNearestPrefabInstanceRoot to test for prefab instance root.
-            
-            if( p.isPartOfPrefabAsset )
+            // First group of check is to test everything about "Prefab Asset"
             {
-                p.prefabAssetRoot = gameObject.transform.root.gameObject;
-                p.isPrefabAssetRoot = (gameObject == p.prefabAssetRoot);
+                // First is to determine isPartOfPrefabAsset
+                p.isPartOfPrefabAsset = PrefabUtility.IsPartOfPrefabAsset( gameObject );
+
+                // Second alternate test, using direct AssetDatabase
+                if( !p.isPartOfPrefabAsset )
+                    p.isPartOfPrefabAsset = !string.IsNullOrEmpty( AssetDatabase.GetAssetPath( gameObject ) );
+
+                // If it is under prefab asset, determine its root
+                // Use gameObject.transform.root.gameObject to test for prefab asset root.
+                if( p.isPartOfPrefabAsset )
+                {
+                    p.prefabAssetRoot = gameObject.transform.root.gameObject;
+                    p.isPrefabAssetRoot = (gameObject == p.prefabAssetRoot);
+                }
             }
 
-            // It could be prefab instance nested inside asset prefab
-            // Test its own root-ness first with nearest instance root method regardless of isPartOfPrefabAsset status
-            
-            if( !p.isPrefabAssetRoot ) // If it is not prefab asset root, check if it is prefab instance root
+            // Second group of check is to test everything about "Prefab Instance" 
+            // This is when you instance an prefab asset into scene or nested under other prefab.
+            // First check is obvious, it should not and cannot be prefab asset root in the first place.
+            if( !p.isPrefabAssetRoot )
             {
-                // Note: Cause warning message on editor:
+                // Use PrefabUtility.GetNearestPrefabInstanceRoot to test for prefab instance root.
+
+                /* Basic visualization
+                 * The node with its [Name] inside bracket is blue gameobject node.
+                 * See image in https://docs.unity3d.com/ScriptReference/PrefabUtility.GetNearestPrefabInstanceRoot.html
+                 * For possible prefab configuration
+                 * 
+                 * - [OUTERMOST]
+                 *   - CHILD 1
+                 *   - CHILD 2
+                 *   - [prefab instance head] < If we are running on this node, isPrefabInstanceRoot = true
+                 *     - child 1
+                 *     - child 2 < If we are running on this node, isPrefabInstanceRoot = false, but we still have nearestInstanceRoot points to 'prefab instance head'
+                 */
+
+                // Note: "PrefabUtility.GetNearestPrefabInstanceRoot" Causes following warning message on editor:
                 // SendMessage cannot be called during Awake, CheckConsistency, or OnValidate
+                // If this API is called in such timing, it is unavoidable, live with it
+                // https://forum.unity.com/threads/sendmessage-cannot-be-called-during-awake-checkconsistency-or-onvalidate-can-we-suppress.537265/
                 p.nearestInstanceRoot = PrefabUtility.GetNearestPrefabInstanceRoot( gameObject );
                 p.isPartOfPrefabInstance = (p.nearestInstanceRoot != null);
-                p.isPrefabInstanceRoot = (gameObject == p.nearestInstanceRoot); // Equivalent to PrefabUtility.IsAnyPrefabInstanceRoot
+                p.isPrefabInstanceRoot = gameObject == p.nearestInstanceRoot; // Equivalent to PrefabUtility.IsAnyPrefabInstanceRoot, see UnityReferenceSource
             }
 
-
-            // Prefab stage needed to be checked separately as it is very special rule
+            // Third test is testing everything about Prefab stage property
+            // needed to be checked separately as it is very special rule
             var editorPrefabStage = PrefabStageUtility.GetCurrentPrefabStage( );
-            if( editorPrefabStage != null ) // We are in prefab stage, but is selected gameobject really an object from prefab stage?
+            if( editorPrefabStage != null ) 
             {
-                // Not 100% sure, but from the fact:
-                // - root object editing in prefab stage wont have connection to its original prefab (gray gameobject icon) 
-                // - editorPrefabStage.prefabContentsRoot cannot be use to == test with gameObject.transform.root.gameObject (which is gameobject instance)
-                //   So with best effort we can test only name there. (The best approach is to test asset path, but API is yet to be found)
+                // We are in prefab stage, but is selected gameobject really an object from prefab stage?
+                // There is no 100% direct API to determine this, plus there is following observed obstacle when in prefab stage:
+                // - root object editing in prefab stage wont have connection to its original prefab (it becomes gray gameobject icon), so we cannot test it with any prefab API. (bad)
+                // - Also cannot test for 'editorPrefabStage.prefabContentsRoot == gameObject.transform.root.gameObject' directly, both seems to always be different object instance.
+                // but we could derive from the following fact:
+
+                // If it was NOT under prefab asset (from above test)
+                // we can almost sure that it is in prefab stage
                 if( p.isPartOfPrefabAsset == false )
                     p.isPartOfPrefabStage = true;
 
-                // Root object has no more parent
+                // Editor prefab stage root object wont have transform.parent
+                // That's how we determine if it is isPrefabStageRoot
                 if( p.isPartOfPrefabStage && gameObject.transform.parent == null )
                     p.isPrefabStageRoot = true;
             }
 
             // AssetPath determination
-            // Has to be done correctly in this order based on API priority
+            // PrefabHelper will try its best to detect most accurate prefab path for this prefab
+            // Has to be done separately based on API priority
             if( p.isRootOfAnyPrefab )
             {
                 if( p.isPrefabStageRoot )
                 {
-                    p.prefabAssetPath = editorPrefabStage.prefabAssetPath;
+                    p.prefabAssetPath = editorPrefabStage.assetPath;
                 }
-                else if( p.isPrefabInstanceRoot ) // Prioritize displaying prefab instance before root asset
+                else if( p.isPrefabInstanceRoot ) // It is nested prefab instance inside another prefab
                 {
-                    // Trace back from prefab instance to original prefab asset
-                    // Note: GetPrefabAssetPathOfNearestInstanceRoot is the only way to obtain real asset path of this (sub/nested)prefab
-                    // internally it uses PrefabUtility.GetOriginalSourceOrVariantRoot which is internal to Unity
+                    // Note: GetPrefabAssetPathOfNearestInstanceRoot is the only way to obtain real asset path of this nested prefab instance
+                    // internally it uses PrefabUtility.GetOriginalSourceOrVariantRoot which is internal function to Unity, see UnityReferenceSource
+                    // FYI: Calling GetAssetPath will get the "top/outermost" one. Not this nested one. (dont want that)
                     p.prefabAssetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot( p.nearestInstanceRoot );
                 }
                 else if( p.isPrefabAssetRoot )
                 {
+                    // Ordinary prefab asset root
                     p.prefabAssetPath = AssetDatabase.GetAssetPath( gameObject );
                 }
             }
             else
             {
-                // This object is not root, but could still be part of some prefab, find that asset path
-                // Nearest asset path
+                // This object is not root of any prefab, but could still be part of some prefab, find that nearest asset path
                 if( p.isPartOfPrefabStage )
                 {
-                    p.prefabAssetPath = editorPrefabStage.prefabAssetPath;
+                    p.prefabAssetPath = editorPrefabStage.assetPath;
                 }
-                else if( p.isPartOfPrefabInstance ) // Prioritize displaying prefab instance before root asset
+                else if( p.isPartOfPrefabInstance )
                 {
                     p.prefabAssetPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot( p.nearestInstanceRoot );
                 }

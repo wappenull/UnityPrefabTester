@@ -1,5 +1,7 @@
 # UnityPrefabTester
 
+Update: Project version is now 2020.1.3f
+
 ![Alt text](./demoImage.png)
 
 Ultimate prefab property tester for nested prefab era.
