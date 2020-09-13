@@ -182,7 +182,7 @@ namespace Wappen.Editor
             {
                 if( p.isPrefabStageRoot )
                 {
-                    p.prefabAssetPath = editorPrefabStage.assetPath;
+                    p.prefabAssetPath = editorPrefabStage.prefabAssetPath;
                 }
                 else if( p.isPrefabInstanceRoot ) // It is nested prefab instance inside another prefab
                 {
@@ -202,7 +202,7 @@ namespace Wappen.Editor
                 // This object is not root of any prefab, but could still be part of some prefab, find that nearest asset path
                 if( p.isPartOfPrefabStage )
                 {
-                    p.prefabAssetPath = editorPrefabStage.assetPath;
+                    p.prefabAssetPath = editorPrefabStage.prefabAssetPath;
                 }
                 else if( p.isPartOfPrefabInstance )
                 {
