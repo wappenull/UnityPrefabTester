@@ -9,8 +9,19 @@ namespace Wappen.Editor
     /// </summary>
     public static class PrefabHelper
     {
-        public struct Properties
+        // Good explanation is here: 
+        // https://docs.unity3d.com/ScriptReference/PrefabUtility.IsOutermostPrefabInstanceRoot.html
+
+
+        public class Properties
         {
+            readonly GameObject originalGameObject;
+
+            public Properties( GameObject g )
+            {
+                originalGameObject = g;
+            }
+
             /* Prefab stage ///////////////////////*/
 
             /// <summary>
@@ -54,13 +65,15 @@ namespace Wappen.Editor
             /// </summary>
             public bool isPartOfPrefabAsset;
 
-#if false
+            /// <summary>
+            /// Type of prefab asset, only if isPartOfPrefabAsset=true.
+            /// </summary>
+            public PrefabAssetType prefabAssetType;
+
             /// <summary>
             /// This is variant prefab of other prefab asset.
-            /// Warning: Limited support, may not accurate on every cases
             /// </summary>
-            public bool isVariant;
-#endif
+            public bool isPrefabAssetVariant => prefabAssetType == PrefabAssetType.Variant;
 
             /// <summary>
             /// Nearest Asset path of prefab around selected gameObject.
@@ -91,6 +104,26 @@ namespace Wappen.Editor
             /// This game object is indeed root of some prefab.
             /// </summary>
             public bool isRootOfAnyPrefab => isPrefabAssetRoot || isPrefabInstanceRoot || isPrefabStageRoot;
+
+            /* Extra queries ////////////////////////*/
+
+            /// <summary>
+            /// Walk one level up of prefab inheritance step.
+            /// If this object is variant, this returns object it created from. (Could be another variant or prefab asset)
+            /// If this object is prefab instance, this returns prefab it instanced from.
+            /// </summary>
+            public GameObject GetSourcePrefab( )
+            {
+                return PrefabUtility.GetCorrespondingObjectFromSource( originalGameObject );
+            }
+
+            /// <summary>
+            /// It is like calling GetSourcePrefab (GetCorrespondingObjectFromSource) in chain all the way to the base.
+            /// </summary>
+            public GameObject GetFirstSourcePrefab( )
+            {
+                return PrefabUtility.GetCorrespondingObjectFromOriginalSource( originalGameObject );
+            }
         }
 
         /// <summary>
@@ -98,7 +131,10 @@ namespace Wappen.Editor
         /// </summary>
         public static Properties GetPrefabProperties( GameObject gameObject )
         {
-            Properties p = new Properties( );
+            if( gameObject == null )
+                return null;
+
+            Properties p = new Properties( gameObject );
 
 #if false // Does not required anymore, also generate warning in Editor
             // Wappen hack: From https://forum.unity.com/threads/problem-with-prefab-api-upgrade.537074/
@@ -121,6 +157,7 @@ namespace Wappen.Editor
                 {
                     p.prefabAssetRoot = gameObject.transform.root.gameObject;
                     p.isPrefabAssetRoot = (gameObject == p.prefabAssetRoot);
+                    p.prefabAssetType = PrefabUtility.GetPrefabAssetType( gameObject );
                 }
             }
 
@@ -214,13 +251,38 @@ namespace Wappen.Editor
                 }
             }
 
-#if false
-            // Variant checking: has limited support and may not be accurate all the time.
-            // Note: Unity has no method for refering back to variant source. (?)
-            // You only know if it is variant or not. Also, why you should bother?
-            p.isVariant = PrefabUtility.IsPartOfVariantPrefab( gameObject );
-#endif
             return p;
+        }
+
+
+        public static bool IsPartOfPrefabStage( GameObject gameObject, out PrefabStage pfs )
+        {
+            pfs = PrefabStageUtility.GetPrefabStage( gameObject );
+            return pfs != null;
+        }
+
+        public static bool IsRootOfPrefabStage( GameObject gameObject, out PrefabStage pfs )
+        {
+            // Note: Cannot use pfs.IsPartOfPrefabContents or pfs.prefabContentsRoot
+            // InvalidOperationException: Requesting 'prefabContentsRoot' from Awake and OnEnable are not supported
+            if( IsPartOfPrefabStage( gameObject, out pfs ) && IsRootOfScene( gameObject ) )
+                return true;
+            return false;
+        }
+
+        public static bool IsRootOfScene( GameObject gameObject )
+        {
+            if( gameObject.transform.parent == null )
+            {
+                // Note: on first frame of entering prefab stage. It will called with scene not loaded
+                if( gameObject.scene.isLoaded == false )
+                    return true; 
+
+                // Also see if it is first root object in stage
+                GameObject[] allRoots = gameObject.scene.GetRootGameObjects( );
+                return allRoots[0] == gameObject;
+            }
+            return false;
         }
     }
 }
